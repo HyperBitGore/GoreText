@@ -36,14 +36,15 @@ public:
 			si = (si << 1);
 			str = t;
 		}
-		str[cur] = c;
+		//str[cur] = c;
+		MultiByteToWideChar(CP_UTF8, 0, &c, 1, str + cur, 1);
 		cur++;
 	} 
 	void insert(char c, size_t pos) {
 		if (pos < 0 || pos > si) {
 			return;
 		}
-		if ((cur*2) + 2 > si) {
+		if ((cur) + 1 > si) {
 			WCHAR* d = (WCHAR*)std::realloc(str, si * 2);
 			if (d == nullptr) {
 				return;
@@ -52,7 +53,8 @@ public:
 			si = (si << 1);
 		}
 		std::memcpy(str + pos + 1, str + pos, (cur - pos) * 2);
-		str[pos] = c;
+		MultiByteToWideChar(CP_UTF8, 0, &c, 1, str + pos, 1);
+		//str[pos] = c;
 		cur++;
 	}
 	size_t size() {
@@ -185,6 +187,22 @@ public:
 		pos++;
 		cur++;
 	}
+	void newLine() {
+		if (cur + 1 > size) {
+			char* d = (char*)std::realloc(data, size * 2);
+			if (d == nullptr) {
+				return;
+			}
+			data = d;
+			size = size * 2;
+		}
+		size_t i = pos + 1;
+		for (i; i < size && data[i] != '\n'; i++);
+		std::memcpy(data + pos + 1, data + pos, i);
+		data[pos] = '\n';
+		pos++;
+		cur++;
+	}
 	void remove() {
 		std::memcpy(data + pos, data + pos + 1, cur - pos);
 		cur--;
@@ -255,7 +273,34 @@ public:
 		std::cout << file.lpstrFile << std::endl;
 		return file.lpstrFile;
 	}
-
+	//it's not actually clearing screen
+	void drawFile(HWND hwnd, PAINTSTRUCT* ps, File* f) {
+		WSTRING str;
+		HDC hdc;
+		hdc = BeginPaint(hwnd, ps);
+		//SetBkMode(hdc, TRANSPARENT);
+		char* t = f->getData();
+		int k = 0;
+		int y = 0;
+		for (int i = 0; i <= f->getSize(); i++, k++) {
+			if (i == f->getPos()) {
+				str.push_back('|');
+			}
+			if (t[i] == '\n' || i == f->getSize()) {
+				RECT r = { 0, y, 0, 16};
+				DrawText(hdc, str.getData(), str.size(), &r, DT_NOCLIP);
+				str.clear();
+				k = 0;
+				y += 16;
+			}
+			else {
+				str.push_back(t[i]);
+			}
+		}
+		EndPaint(hwnd, ps);
+		DeleteObject(ps);
+		ReleaseDC(hwnd, hdc);
+	}
 
 };
 LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);

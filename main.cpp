@@ -2,53 +2,17 @@
 
 
 LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-	HDC hdc;
 	PAINTSTRUCT ps;
 	File* f = nullptr;
-	char* t = nullptr;
 	int y = 0;
 	if (edit != nullptr) {
 		f = edit->getFile(0);
-		t = f->getData();
+		//t = f->getData();
 	}
 	switch (msg) {
 	case WM_PAINT:
 		if (edit != nullptr) {
-			WSTRING str;
-			hdc = BeginPaint(hwnd, &ps);
-			int x = 0;
-			int o = 0;
-			bool line = false;
-			int j = 0;
-			int k = 0;
-			for (int i = 0; i <= f->getSize(); i++, x += 8, k++) {
-				if (i == f->getPos()) {
-					line = true;
-					o = x;
-					j = k;
-				}
-				if (t[i] == '\n' || i == f->getSize()) {
-					if (line) {
-						line = false;
-						TextOut(hdc, 0, y, str.getData(), j);
-						SetDCPenColor(hdc, RGB(255, 80, 20));
-						Rectangle(hdc, o, y, o + 8, y + 8);
-						TextOut(hdc, o + 8, y, str.getData() + j, str.size() - j);
-						//SetDCPenColor(hdc, BLACK_PEN);
-					}
-					else {
-						TextOut(hdc, 0, y, str.getData(), str.size());
-					}
-					str.clear();
-					k = 0;
-					x = 0;
-					y += 16;
-				}
-				else {
-					str.push_back(t[i]);
-				}
-			}
-			EndPaint(hwnd, &ps);
+			edit->drawFile(hwnd, &ps, f);
 		}
 		break;
 	case WM_KEYDOWN:
@@ -57,14 +21,16 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			DestroyWindow(hwnd);
 			break;
 		case VK_RETURN:
-			
+			f->newLine();
+			InvalidateRect(hwnd, NULL, true);
 			break;
 		case VK_BACK:
 			f->remove();
 			InvalidateRect(hwnd, NULL, true);
 			break;
 		case VK_TAB:
-			
+			f->write('\t');
+			InvalidateRect(hwnd, NULL, true);
 			break;
 		case VK_SPACE:
 			f->write(' ');
