@@ -32,6 +32,10 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			f->write('\t');
 			InvalidateRect(hwnd, NULL, true);
 			break;
+		case VK_DELETE:
+			f->del();
+			InvalidateRect(hwnd, NULL, true);
+			break;
 		case VK_SPACE:
 			f->write(' ');
 			InvalidateRect(hwnd, NULL, true);
@@ -45,10 +49,12 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			InvalidateRect(hwnd, NULL, true);
 			break;
 		case VK_UP:
-			
+			f->setPos(f->goto_prevline());
+			InvalidateRect(hwnd, NULL, true);
 			break;
 		case VK_DOWN:
-			
+			f->setPos(f->goto_nextline());
+			InvalidateRect(hwnd, NULL, true);
 			break;
 		default:
 		{

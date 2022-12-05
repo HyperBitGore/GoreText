@@ -7,6 +7,9 @@
 #include <functional>
 #include <Windows.h>
 
+//add file opening
+//add multi file support
+//add copy and pasting
 
 
 class WSTRING {
@@ -208,6 +211,10 @@ public:
 		cur--;
 		pos--;
 	}
+	void del() {
+		std::memcpy(data + pos - 1, data + pos, cur - pos);
+		cur--;
+	}
 	void save() {
 		std::ofstream f;
 		f.open(fi);
@@ -221,6 +228,30 @@ public:
 			return;
 		}
 		pos = p;
+	}
+	size_t getline_pos() {
+		size_t i = pos;
+		size_t c = 0;
+		for (i = pos; i > 0 && data[i] != '\n'; i--, c++);
+		return c;
+	}
+	size_t goto_nextline() {
+		size_t i;
+		size_t lp = getline_pos();
+		for (i = pos; i < size && data[i] != '\n'; i++);
+		i++;
+		size_t c = 0;
+		for (i, c; i < size && c <= lp; i++, c++);
+		return i;
+	}
+	size_t goto_prevline() {
+		size_t i;
+		size_t lp = getline_pos();
+		for (i = pos; i > 0 && data[i] != '\n'; i--);
+		i--;
+		size_t c = 0;
+		for (i, c; i > 0 && c <= lp; i--, c++);
+		return i;
 	}
 	size_t getPos() {
 		return pos;
@@ -275,6 +306,7 @@ public:
 	}
 	//it's not actually clearing screen
 	void drawFile(HWND hwnd, PAINTSTRUCT* ps, File* f) {
+		Rectangle(GetDC(hwnd), -1, -1, wind->getWidth(), wind->getHeight());
 		WSTRING str;
 		HDC hdc;
 		hdc = BeginPaint(hwnd, ps);
@@ -292,6 +324,13 @@ public:
 				str.clear();
 				k = 0;
 				y += 16;
+			}
+			else if (t[i] == '\t') {
+				str.push_back(' ');
+				str.push_back(' ');
+				str.push_back(' ');
+				str.push_back(' ');
+				str.push_back(' ');
 			}
 			else {
 				str.push_back(t[i]);
