@@ -6,10 +6,17 @@
 #include <vector>
 #include <functional>
 #include <Windows.h>
+#include <commdlg.h>
+#include <shobjidl_core.h>
 
-//add file opening
+//add file creation
+//add buttons
 //add multi file support
 //add copy and pasting
+//add ctrl f
+
+
+
 
 
 class WSTRING {
@@ -69,6 +76,15 @@ public:
 	void clear() {
 		std::memset(str, 0, si);
 		cur = 0;
+	}
+	std::string toString() {
+		std::string c;
+		for (int i = 0; i < size(); i++) {
+			char cp;
+			WideCharToMultiByte(CP_UTF8, 0, getData() + i, 1, &cp, 1, NULL, NULL);
+			c.push_back(cp);
+		}
+		return c;
 	}
 };
 
@@ -146,7 +162,12 @@ public:
 	int getHeight() {
 		return height;
 	}
-
+	void setWidth(int w) {
+		width = w;
+	}
+	void setHeight(int h) {
+		height = h;
+	}
 	HWND getHwnd() {
 		return m_hwnd;
 	}
@@ -173,7 +194,13 @@ public:
 			size++;
 		}
 		cur = size;
-		data = (char*)std::malloc(size);
+		if (size == 0) {
+			data = (char*)std::malloc(10);
+			size = 10;
+		}
+		else {
+			data = (char*)std::malloc(size);
+		}
 		std::memcpy(data, str.c_str(), size);
 	}
 	void write(char c) {
@@ -269,11 +296,29 @@ public:
 class Editor {
 private:
 	std::vector<File> files;
+	size_t cur_file = 0;
 	Window* wind = nullptr;
 public:
 	Editor(int w, int h, int x, int y, WNDPROC proc) {
 		wind = new Window(L"Gore Text", L"GTEXTEDIT", h, w, x, y, proc);
 		ShowWindow(wind->getHwnd(), true);
+	}
+	void nextFile() {
+		if (cur_file + 1 >= files.size()) {
+			cur_file = 0;
+		}
+		else {
+			std::cout << files.size() << "\n";
+			cur_file++;
+		}
+	}
+	void prevFile() {
+		if (cur_file - 1 < 0) {
+			cur_file = files.size() - 1;
+		}
+		else {
+			cur_file--;
+		}
 	}
 	void openFile(std::string file) {
 		File f(file);
@@ -297,14 +342,18 @@ public:
 		}
 		return &files[index];
 	}
-
+	File* getCurFile() {
+		return &files[cur_file];
+	}
 	LPWSTR findFile() {
 		OPENFILENAME file;
 		GetOpenFileName(&file);
 		std::cout << file.lpstrFile << std::endl;
 		return file.lpstrFile;
 	}
-	//it's not actually clearing screen
+	
+
+	//it clears screen now
 	void drawFile(HWND hwnd, PAINTSTRUCT* ps, File* f) {
 		Rectangle(GetDC(hwnd), -1, -1, wind->getWidth(), wind->getHeight());
 		WSTRING str;
@@ -340,7 +389,56 @@ public:
 		DeleteObject(ps);
 		ReleaseDC(hwnd, hdc);
 	}
+	void resize() {
+		RECT rect;
+		GetWindowRect(wind->getHwnd(), &rect);
+		wind->setHeight(rect.bottom);
+		wind->setWidth(rect.right);
+	}
+	void newFile() {
+		IFileOpenDialog* dial;
+		HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+			IID_IFileOpenDialog, reinterpret_cast<void**>(&dial));
 
+		if (SUCCEEDED(hr))
+		{
+			// Show the Open dialog box.
+			hr = dial->Show(NULL);
+
+			// Get the file name from the dialog box.
+			if (SUCCEEDED(hr))
+			{
+				IShellItem* pItem;
+				hr = dial->GetResult(&pItem);
+				if (SUCCEEDED(hr))
+				{
+					PWSTR pszFilePath;
+					hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+					// Display the file name to the user.
+					if (SUCCEEDED(hr))
+					{
+						size_t size = wcslen(pszFilePath);
+						char* cp;
+						cp = new char[size];
+						WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, cp, size, NULL, NULL);
+						MessageBoxW(NULL, pszFilePath, L"File Path", MB_OK);
+						std::string c;
+						//we get weird chars in odd byte sizes for char array so gotta convert to string here and ignore other garbage
+						for (int i = 0; i < size; i++) {
+							c.push_back(cp[i]);
+						}
+						openFile(c);
+						std::cout << c << "\n";
+						delete[] cp;
+						CoTaskMemFree(pszFilePath);
+					}
+					pItem->Release();
+				}
+			}
+			dial->Release();
+		}
+	}
 };
 LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 Editor* edit = new Editor(400, 400, 200, 200, windPrc);

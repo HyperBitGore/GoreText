@@ -6,7 +6,7 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	File* f = nullptr;
 	int y = 0;
 	if (edit != nullptr) {
-		f = edit->getFile(0);
+		f = edit->getCurFile();
 		//t = f->getData();
 	}
 	switch (msg) {
@@ -15,10 +15,24 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			edit->drawFile(hwnd, &ps, f);
 		}
 		break;
+	case WM_SIZE:
+		if (edit != nullptr) {
+			edit->resize();
+		}
+		break;
 	case WM_KEYDOWN:
 		switch (wparam) {
 		case VK_ESCAPE:
-			DestroyWindow(hwnd);
+			//DestroyWindow(hwnd);
+			if (edit != nullptr) {
+				edit->newFile();
+			}
+			break;
+		case VK_CAPITAL:
+			if (edit != nullptr) {
+				edit->nextFile();
+				InvalidateRect(hwnd, NULL, true);
+			}
 			break;
 		case VK_RETURN:
 			f->newLine();
