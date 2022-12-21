@@ -34,6 +34,11 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 				InvalidateRect(hwnd, NULL, true);
 			}
 			break;
+		case VK_CONTROL:
+			if (edit != nullptr) {
+				edit->createFile();
+			}
+			break;
 		case VK_RETURN:
 			f->newLine();
 			InvalidateRect(hwnd, NULL, true);
@@ -85,9 +90,53 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		f->save();
 		DestroyWindow(hwnd);
 		break;
+	case WM_LBUTTONDOWN:
+		{
+			LPPOINT p = new tagPOINT;
+			GetCursorPos(p);
+			ScreenToClient(hwnd, p);
+			std::cout << p->x << " " << p->y << "\n";
+			Button* b = edit->findButtonDown(p->x, p->y);
+			if (b != nullptr) {
+				edit->setFile(b->getIndex());
+				InvalidateRect(hwnd, NULL, true);
+			}
+			delete p;
+		}
+		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0;
+	case WM_COMMAND:
+		if (HIWORD(wparam) == CBN_SELCHANGE)
+			// If the user makes a selection from the list:
+			//   Send CB_GETCURSEL message to get the index of the selected list item.
+			//   Send CB_GETLBTEXT message to get the item.
+			//   Display the item in a messagebox.
+		{
+			int ItemIndex = SendMessage((HWND)lparam, (UINT)CB_GETCURSEL,
+				(WPARAM)0, (LPARAM)0);
+
+			switch (ItemIndex) {
+			case 0:
+				edit->newFile();
+				InvalidateRect(hwnd, NULL, true);
+				break;
+			case 1:
+				edit->closeFile();
+				InvalidateRect(hwnd, NULL, true);
+				break;
+			case 2:
+				edit->createFile();
+				InvalidateRect(hwnd, NULL, true);
+				break;
+			case 3:
+				f->save();
+				InvalidateRect(hwnd, NULL, true);
+				break;
+			}
+		}
+		break;
 	}
 	return DefWindowProc(hwnd, msg, wparam, lparam);
 }

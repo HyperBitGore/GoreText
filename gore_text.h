@@ -9,9 +9,8 @@
 #include <commdlg.h>
 #include <shobjidl_core.h>
 
-//add file creation
-//add buttons
-//add multi file support
+
+//finish file buttons
 //add copy and pasting
 //add ctrl f
 
@@ -32,6 +31,16 @@ public:
 		cur = length;
 		if (str != 0){
 			std::memcpy(str, string, length * 2);
+		}
+	}
+	WSTRING(std::string string) {
+		//str = (WCHAR*)std::malloc(string.size() * 2);
+		//si = string.size() * 2;
+		//cur = string.size();
+		if (str != 0) {
+			for (auto& i : string) {
+				push_back(i);
+			}
 		}
 	}
 	~WSTRING() {
@@ -171,6 +180,9 @@ public:
 	HWND getHwnd() {
 		return m_hwnd;
 	}
+	HINSTANCE getInstance() {
+		return m_hinstance;
+	}
 };
 
 class File {
@@ -292,15 +304,71 @@ public:
 };
 
 
+class Button {
+private:
+	int index;
+	int x, y, w, h;
+	WSTRING name;
+public:
+	Button(int xr, int yr, int wr, int hr, int ind, WSTRING n) {
+		x = xr;
+		y = yr;
+		w = wr;
+		h = hr;
+		index = ind;
+		name = n;
+	}
+	int getIndex() {
+		return index;
+	}
+	int getX() {
+		return x;
+	}
+	int getY() {
+		return y;
+	}
+	int getWidth() {
+		return w;
+	}
+	int getHeight() {
+		return h;
+	}
+	WSTRING getText() {
+		return name;
+	}
+};
+
 
 class Editor {
 private:
 	std::vector<File> files;
+	std::vector<Button> buttons;
+	int cur_x = 110;
 	size_t cur_file = 0;
 	Window* wind = nullptr;
+	HWND dropdown;
 public:
 	Editor(int w, int h, int x, int y, WNDPROC proc) {
 		wind = new Window(L"Gore Text", L"GTEXTEDIT", h, w, x, y, proc);
+		//dropdown init
+		dropdown = CreateWindow(WC_COMBOBOX, TEXT(""), CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE, 0, 0, 100, 100,
+			wind->getHwnd(), NULL, wind->getInstance(), NULL);
+		TCHAR drops[4][11] = {
+			TEXT("Open File"), TEXT("Close File"), TEXT("New File"), TEXT("Save")
+		};
+		TCHAR A[16];
+		int  k = 0;
+
+		memset(&A, 0, sizeof(A));
+		for (k = 0; k <= 3; k += 1)
+		{
+			wcscpy_s(A, sizeof(A) / sizeof(TCHAR), (TCHAR*)drops[k]);
+
+			// Add string to combobox.
+			SendMessage(dropdown, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)A);
+		}
+		SendMessage(dropdown, CB_SETCURSEL, (WPARAM)2, (LPARAM)0);
+		//show everything
 		ShowWindow(wind->getHwnd(), true);
 	}
 	void nextFile() {
@@ -323,6 +391,12 @@ public:
 	void openFile(std::string file) {
 		File f(file);
 		files.push_back(f);
+		size_t index = 0;
+		if (buttons.size() > 0) {
+			index = files.size() - 1;
+		}
+		buttons.push_back(Button(cur_x, 0, 30, 20, index, file));
+		cur_x += 55;
 	}
 	void closeFile() {
 		
@@ -342,6 +416,11 @@ public:
 		}
 		return &files[index];
 	}
+	void setFile(size_t index) {
+		if (index < files.size()) {
+			cur_file = index;
+		}
+	}
 	File* getCurFile() {
 		return &files[cur_file];
 	}
@@ -351,7 +430,21 @@ public:
 		std::cout << file.lpstrFile << std::endl;
 		return file.lpstrFile;
 	}
-	
+	std::vector<Button>& getButtons() {
+		return buttons;
+	}
+	bool isColliding(RECT r1, RECT r2) {
+		return (r1.left < r2.left + r2.right && r1.left + r1.right > r2.left && r1.top < r2.top + r2.bottom && r1.top + r1.bottom > r2.top);
+	}
+	Button* findButtonDown(int mx, int my) {
+		for (auto& i : buttons) {
+			if (isColliding({ mx, my, 3, 3 }, { i.getX(), i.getY(), i.getWidth(), i.getHeight() })) {
+				return &i;
+			}
+		}
+		return nullptr;
+	}
+
 
 	//it clears screen now
 	void drawFile(HWND hwnd, PAINTSTRUCT* ps, File* f) {
@@ -359,10 +452,19 @@ public:
 		WSTRING str;
 		HDC hdc;
 		hdc = BeginPaint(hwnd, ps);
-		//SetBkMode(hdc, TRANSPARENT);
+		//draw the file buttons
+		int sx = 120;
+		for (auto& i : buttons) {
+			SetDCPenColor(hdc, RGB(20, 20, 20));
+			Rectangle(hdc, sx, 0, sx + 40, 20);
+			RECT r = { sx, 0, sx + 40, 20 };
+			DrawText(hdc, i.getText().getData(), i.getText().size(), &r, DT_NOCLIP);
+			sx += 45;
+		}
+		//drawing file
 		char* t = f->getData();
 		int k = 0;
-		int y = 0;
+		int y = 22;
 		for (int i = 0; i <= f->getSize(); i++, k++) {
 			if (i == f->getPos()) {
 				str.push_back('|');
@@ -395,6 +497,51 @@ public:
 		wind->setHeight(rect.bottom);
 		wind->setWidth(rect.right);
 	}
+	void createFile() {
+		IFileSaveDialog* dial;
+		HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_ALL,
+			IID_IFileSaveDialog, reinterpret_cast<void**>(&dial));
+
+		if (SUCCEEDED(hr))
+		{
+			// Show the Open dialog box.
+			hr = dial->Show(NULL);
+
+			// Get the file name from the dialog box.
+			if (SUCCEEDED(hr))
+			{
+				IShellItem* pItem;
+				hr = dial->GetResult(&pItem);
+				if (SUCCEEDED(hr))
+				{
+					PWSTR pszFilePath;
+					hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+					// Display the file name to the user.
+					if (SUCCEEDED(hr))
+					{
+						size_t size = wcslen(pszFilePath);
+						char* cp;
+						cp = new char[size];
+						WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, cp, size, NULL, NULL);
+						MessageBoxW(NULL, pszFilePath, L"File Path", MB_OK);
+						std::string c;
+						//we get weird chars in odd byte sizes for char array so gotta convert to string here and ignore other garbage
+						for (int i = 0; i < size; i++) {
+							c.push_back(cp[i]);
+						}
+						openFile(c);
+						std::cout << c << "\n";
+						delete[] cp;
+						CoTaskMemFree(pszFilePath);
+					}
+					pItem->Release();
+				}
+			}
+			dial->Release();
+		}
+	}
+
 	void newFile() {
 		IFileOpenDialog* dial;
 		HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
