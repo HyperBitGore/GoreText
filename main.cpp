@@ -94,8 +94,8 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		{
 			LPPOINT p = new tagPOINT;
 			GetCursorPos(p);
+			//converts cursos pos to window pos
 			ScreenToClient(hwnd, p);
-			std::cout << p->x << " " << p->y << "\n";
 			Button* b = edit->findButtonDown(p->x, p->y);
 			if (b != nullptr) {
 				edit->setFile(b->getIndex());

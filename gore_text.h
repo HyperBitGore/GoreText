@@ -10,7 +10,7 @@
 #include <shobjidl_core.h>
 
 
-//finish file buttons
+
 //add copy and pasting
 //add ctrl f
 
@@ -37,14 +37,11 @@ public:
 		//str = (WCHAR*)std::malloc(string.size() * 2);
 		//si = string.size() * 2;
 		//cur = string.size();
-		if (str != 0) {
-			for (auto& i : string) {
-				push_back(i);
-			}
+		str = (WCHAR*)std::malloc(string.size() * 2);
+		si = string.size() * 2;
+		for (auto& i : string) {
+			push_back(i);
 		}
-	}
-	~WSTRING() {
-		std::free(str);
 	}
 	void push_back(char c) {
 		if ((cur*2) + 2 > si) {
@@ -94,6 +91,9 @@ public:
 			c.push_back(cp);
 		}
 		return c;
+	}
+	void destroy() {
+		std::free(str);
 	}
 };
 
@@ -310,13 +310,13 @@ private:
 	int x, y, w, h;
 	WSTRING name;
 public:
-	Button(int xr, int yr, int wr, int hr, int ind, WSTRING n) {
+	Button(int xr, int yr, int wr, int hr, int ind, std::string n) {
 		x = xr;
 		y = yr;
 		w = wr;
 		h = hr;
 		index = ind;
-		name = n;
+		name = WSTRING(n);
 	}
 	int getIndex() {
 		return index;
@@ -336,13 +336,16 @@ public:
 	WSTRING getText() {
 		return name;
 	}
+	~Button() {
+		name.destroy();
+	}
 };
 
 
 class Editor {
 private:
 	std::vector<File> files;
-	std::vector<Button> buttons;
+	std::vector<Button*> buttons;
 	int cur_x = 110;
 	size_t cur_file = 0;
 	Window* wind = nullptr;
@@ -371,6 +374,23 @@ public:
 		//show everything
 		ShowWindow(wind->getHwnd(), true);
 	}
+	std::string getFileName(std::string f) {
+		std::string out;
+		size_t i = 0;
+		for (i; i < f.size(); i++);
+		i--;
+		for (i; i > 0 && f[i] != '\\'; i--) {
+			out.push_back(f[i]);
+		}
+		(i == 0) ? out.push_back(f[0]) : void();
+		size_t p = out.size() - 1;
+		for (i = 0; i < out.size() && i != p; i++, p--) {
+			char t = out[i];
+			out[i] = out[p];
+			out[p] = t;
+		}
+		return out;
+	}
 	void nextFile() {
 		if (cur_file + 1 >= files.size()) {
 			cur_file = 0;
@@ -395,8 +415,11 @@ public:
 		if (buttons.size() > 0) {
 			index = files.size() - 1;
 		}
-		buttons.push_back(Button(cur_x, 0, 30, 20, index, file));
-		cur_x += 55;
+		std::string name = getFileName(file);
+		Button* b = new Button(cur_x, 0, name.size() * 6, 20, index, name);
+		buttons.push_back(b);
+		cur_x += name.size() * 6;
+		cur_x += 5;
 	}
 	void closeFile() {
 		
@@ -430,7 +453,7 @@ public:
 		std::cout << file.lpstrFile << std::endl;
 		return file.lpstrFile;
 	}
-	std::vector<Button>& getButtons() {
+	std::vector<Button*>& getButtons() {
 		return buttons;
 	}
 	bool isColliding(RECT r1, RECT r2) {
@@ -438,15 +461,15 @@ public:
 	}
 	Button* findButtonDown(int mx, int my) {
 		for (auto& i : buttons) {
-			if (isColliding({ mx, my, 3, 3 }, { i.getX(), i.getY(), i.getWidth(), i.getHeight() })) {
-				return &i;
+			if (isColliding({ mx, my, 3, 3 }, { i->getX(), i->getY(), i->getWidth(), i->getHeight() })) {
+				return i;
 			}
 		}
 		return nullptr;
 	}
 
 
-	//it clears screen now
+	//main window drawing function
 	void drawFile(HWND hwnd, PAINTSTRUCT* ps, File* f) {
 		Rectangle(GetDC(hwnd), -1, -1, wind->getWidth(), wind->getHeight());
 		WSTRING str;
@@ -456,10 +479,10 @@ public:
 		int sx = 120;
 		for (auto& i : buttons) {
 			SetDCPenColor(hdc, RGB(20, 20, 20));
-			Rectangle(hdc, sx, 0, sx + 40, 20);
-			RECT r = { sx, 0, sx + 40, 20 };
-			DrawText(hdc, i.getText().getData(), i.getText().size(), &r, DT_NOCLIP);
-			sx += 45;
+			Rectangle(hdc, sx, 0, sx + i->getWidth(), 20);
+			RECT r = { sx, 0, sx + i->getWidth(), 20};
+			DrawText(hdc, i->getText().getData(), i->getText().size(), &r, DT_NOCLIP);
+			sx += i->getWidth() + 5;
 		}
 		//drawing file
 		char* t = f->getData();
@@ -487,6 +510,7 @@ public:
 				str.push_back(t[i]);
 			}
 		}
+		str.destroy();
 		EndPaint(hwnd, ps);
 		DeleteObject(ps);
 		ReleaseDC(hwnd, hdc);
