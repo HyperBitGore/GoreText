@@ -11,7 +11,6 @@
 
 
 
-//add copy and pasting
 //add ctrl f
 
 
@@ -34,9 +33,6 @@ public:
 		}
 	}
 	WSTRING(std::string string) {
-		//str = (WCHAR*)std::malloc(string.size() * 2);
-		//si = string.size() * 2;
-		//cur = string.size();
 		str = (WCHAR*)std::malloc(string.size() * 2);
 		si = string.size() * 2;
 		for (auto& i : string) {
@@ -52,7 +48,6 @@ public:
 			si = (si << 1);
 			str = t;
 		}
-		//str[cur] = c;
 		MultiByteToWideChar(CP_UTF8, 0, &c, 1, str + cur, 1);
 		cur++;
 	} 
@@ -70,7 +65,6 @@ public:
 		}
 		std::memcpy(str + pos + 1, str + pos, (cur - pos) * 2);
 		MultiByteToWideChar(CP_UTF8, 0, &c, 1, str + pos, 1);
-		//str[pos] = c;
 		cur++;
 	}
 	size_t size() {
@@ -347,6 +341,12 @@ private:
 	std::vector<File> files;
 	std::vector<Button*> buttons;
 	int cur_x = 110;
+	int lx = 0;
+	int ly = 0;
+	bool ctrl_d = false;
+	bool selc = false;
+	size_t start_sel = -1;
+	size_t end_sel = -1;
 	size_t cur_file = 0;
 	Window* wind = nullptr;
 	HWND dropdown;
@@ -421,6 +421,9 @@ public:
 		cur_x += name.size() * 6;
 		cur_x += 5;
 	}
+	void setCtrl(bool val) {
+		ctrl_d = val;
+	}
 	void closeFile() {
 		
 	}
@@ -445,6 +448,9 @@ public:
 		}
 	}
 	File* getCurFile() {
+		if (files.size() <= 0) {
+			return nullptr;
+		}
 		return &files[cur_file];
 	}
 	LPWSTR findFile() {
@@ -467,7 +473,40 @@ public:
 		}
 		return nullptr;
 	}
+	void copyStringToFile(std::string str, File* f) {
+		for (auto& i : str) {
+			f->write(i);
+		}
+	}
+	std::string getClipboardText() {
+		if (!OpenClipboard(nullptr)) { return ""; }
+		// Get handle of clipboard object for ANSI text
+		HANDLE hData = GetClipboardData(CF_TEXT);
+		if (hData == nullptr) { return ""; }
 
+		// Lock the handle to get the actual text pointer
+		char* pszText = static_cast<char*>(GlobalLock(hData));
+		if (pszText == nullptr) { ""; }
+
+		// Save text in a string class instance
+		std::string text(pszText);
+
+		// Release the lock
+		GlobalUnlock(hData);
+
+		// Release the clipboard
+		CloseClipboard();
+		return text;
+	}
+	void setClipboardText(std::string text) {
+		if (!OpenClipboard(nullptr)) { return; }
+		HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, text.size());
+		memcpy(GlobalLock(hMem), text.c_str(), text.size());
+		GlobalUnlock(hMem);
+		EmptyClipboard();
+		SetClipboardData(CF_TEXT, (HANDLE)hMem);
+		CloseClipboard();
+	}
 
 	//main window drawing function
 	void drawFile(HWND hwnd, PAINTSTRUCT* ps, File* f) {
@@ -484,30 +523,40 @@ public:
 			DrawText(hdc, i->getText().getData(), i->getText().size(), &r, DT_NOCLIP);
 			sx += i->getWidth() + 5;
 		}
-		//drawing file
-		char* t = f->getData();
-		int k = 0;
-		int y = 22;
-		for (int i = 0; i <= f->getSize(); i++, k++) {
-			if (i == f->getPos()) {
-				str.push_back('|');
-			}
-			if (t[i] == '\n' || i == f->getSize()) {
-				RECT r = { 0, y, 0, 16};
-				DrawText(hdc, str.getData(), str.size(), &r, DT_NOCLIP);
-				str.clear();
-				k = 0;
-				y += 16;
-			}
-			else if (t[i] == '\t') {
-				str.push_back(' ');
-				str.push_back(' ');
-				str.push_back(' ');
-				str.push_back(' ');
-				str.push_back(' ');
-			}
-			else {
-				str.push_back(t[i]);
+		if (f != nullptr) {
+			//drawing file
+			char* t = f->getData();
+			int k = 0;
+			int y = 22;
+			for (int i = 0; i <= f->getSize(); i++, k++) {
+				if (i == f->getPos()) {
+					str.push_back('|');
+				}
+				if (start_sel != -1) {
+					if (i == start_sel) {
+						str.push_back('[');
+					}
+					else if (i == end_sel) {
+						str.push_back(']');
+					}
+				}
+				if (t[i] == '\n' || i == f->getSize()) {
+					RECT r = { 0, y, 0, 16 };
+					DrawText(hdc, str.getData(), str.size(), &r, DT_NOCLIP);
+					str.clear();
+					k = 0;
+					y += 16;
+				}
+				else if (t[i] == '\t') {
+					str.push_back(' ');
+					str.push_back(' ');
+					str.push_back(' ');
+					str.push_back(' ');
+					str.push_back(' ');
+				}
+				else {
+					str.push_back(t[i]);
+				}
 			}
 		}
 		str.destroy();
@@ -548,7 +597,6 @@ public:
 						char* cp;
 						cp = new char[size];
 						WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, cp, size, NULL, NULL);
-						MessageBoxW(NULL, pszFilePath, L"File Path", MB_OK);
 						std::string c;
 						//we get weird chars in odd byte sizes for char array so gotta convert to string here and ignore other garbage
 						for (int i = 0; i < size; i++) {
@@ -593,7 +641,6 @@ public:
 						char* cp;
 						cp = new char[size];
 						WideCharToMultiByte(CP_UTF8, 0, pszFilePath, -1, cp, size, NULL, NULL);
-						MessageBoxW(NULL, pszFilePath, L"File Path", MB_OK);
 						std::string c;
 						//we get weird chars in odd byte sizes for char array so gotta convert to string here and ignore other garbage
 						for (int i = 0; i < size; i++) {
@@ -609,6 +656,63 @@ public:
 			}
 			dial->Release();
 		}
+	}
+	//selection functions
+	void startSelection() {
+		selc = true;
+		start_sel = files[cur_file].getPos();
+		end_sel = start_sel;
+	}
+	void endSelection() {
+		selc = false;
+	}
+	void clearSelection() {
+		selc = false;
+		start_sel = -1;
+		end_sel = -1;
+	}
+	void incSelection() {
+		if (end_sel + 1 < files[cur_file].getSize()) {
+			end_sel++;
+		}
+	}
+	void decSelection() {
+		if (start_sel - 1 >= 0) {
+			start_sel--;
+		}
+	}
+	std::string getSelection() {
+		if (start_sel != -1) {
+			std::string out;
+			for (size_t i = start_sel; i <= end_sel; i++) {
+				out.push_back(*(files[cur_file].getData() + i));
+			}
+			return out;
+		}
+		return "";
+	}
+	void changeSelect(int nx, int ny) {
+		int cx = std::abs(nx - lx);
+		for (int i = 0; i < cx; i++) {
+			(nx > lx) ? incSelection() : decSelection();
+		}
+		lx = nx;
+		ly = ny;
+	}
+	bool getSelect() {
+		return selc;
+	}
+	void setLx(int l) {
+		lx = l;
+	}
+	void setLy(int l) {
+		ly = l;
+	}
+	int getLx() {
+		return lx;
+	}
+	int getLy() {
+		return ly;
 	}
 };
 LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);

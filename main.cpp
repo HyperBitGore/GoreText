@@ -7,7 +7,6 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	int y = 0;
 	if (edit != nullptr) {
 		f = edit->getCurFile();
-		//t = f->getData();
 	}
 	switch (msg) {
 	case WM_PAINT:
@@ -20,24 +19,26 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			edit->resize();
 		}
 		break;
+	case WM_KEYUP:
+		switch (wparam) {
+		case VK_CONTROL:
+			edit->setCtrl(false);
+			break;
+		}
+		break;
 	case WM_KEYDOWN:
 		switch (wparam) {
 		case VK_ESCAPE:
-			//DestroyWindow(hwnd);
-			if (edit != nullptr) {
-				edit->newFile();
-			}
+			DestroyWindow(hwnd);
 			break;
 		case VK_CAPITAL:
-			if (edit != nullptr) {
-				edit->nextFile();
-				InvalidateRect(hwnd, NULL, true);
-			}
+			
 			break;
 		case VK_CONTROL:
-			if (edit != nullptr) {
-				edit->createFile();
-			}
+			edit->setCtrl(true);
+			break;
+		case VK_SHIFT:
+
 			break;
 		case VK_RETURN:
 			f->newLine();
@@ -79,8 +80,24 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		{
 			char c = MapVirtualKey(wparam, 2);
 			if (!GetAsyncKeyState(VK_SHIFT)) { c += 32; }
-			//std::cout << c << "\n";
-			f->write(c);
+			if (GetAsyncKeyState(VK_CONTROL)) {
+				if (c == 'v') {
+					//get the clipboard data
+					std::string clip = edit->getClipboardText();
+					//write to current file
+					edit->copyStringToFile(clip, f);
+				}
+				else if (c == 'c') {
+					//get selection
+					std::string sel = edit->getSelection();
+					//add to clipboard
+					edit->setClipboardText(sel);
+					edit->clearSelection();
+				}
+			}
+			else {
+				f->write(c);
+			}
 			InvalidateRect(hwnd, NULL, true);
 		}
 			break;
@@ -90,15 +107,29 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		f->save();
 		DestroyWindow(hwnd);
 		break;
+	case WM_LBUTTONUP:
+		edit->endSelection();
+		break;
 	case WM_LBUTTONDOWN:
 		{
 			LPPOINT p = new tagPOINT;
 			GetCursorPos(p);
 			//converts cursos pos to window pos
 			ScreenToClient(hwnd, p);
-			Button* b = edit->findButtonDown(p->x, p->y);
-			if (b != nullptr) {
-				edit->setFile(b->getIndex());
+			if (p->y < 25) {
+				Button* b = edit->findButtonDown(p->x, p->y);
+				if (b != nullptr) {
+					edit->setFile(b->getIndex());
+					InvalidateRect(hwnd, NULL, true);
+				}
+			}
+			else {
+				if (edit->getSelect()) {
+					edit->startSelection();
+				}
+				else {
+					edit->changeSelect(p->x, p->y);
+				}
 				InvalidateRect(hwnd, NULL, true);
 			}
 			delete p;
@@ -142,11 +173,7 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 }
 
 
-//https://learn.microsoft.com/en-us/windows/win32/dlgbox/open-and-save-as-dialog-boxes
-//https://learn.microsoft.com/en-us/windows/win32/controls/create-a-button
 int main() {
-	//edit = new Editor(400, 400, 200, 200, windPrc);
-	edit->openFile("file1.txt");
 	while (edit->loop());
 	return 0;
 }
