@@ -104,7 +104,9 @@ LRESULT	CALLBACK windPrc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 		break;
 	case WM_CLOSE:
-		f->save();
+		if (f != nullptr) {
+			f->save();
+		}
 		DestroyWindow(hwnd);
 		break;
 	case WM_LBUTTONUP:
